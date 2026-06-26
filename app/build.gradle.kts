@@ -10,7 +10,7 @@ android {
     defaultConfig {
         applicationId = "com.skaddie.watt_if"
         minSdk = 26
-        targetSdk = 37  // also bump this to match
+        targetSdk = 37
         versionCode = 1
         versionName = "1.0"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
