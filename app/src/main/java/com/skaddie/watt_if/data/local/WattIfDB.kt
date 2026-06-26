@@ -10,6 +10,6 @@ import com.skaddie.watt_if.data.local.entity.ReadingEntity
     version = 1,
     exportSchema = false
 )
-abstract class WattIfDatabase : RoomDatabase() {
+abstract class WattIfDB : RoomDatabase() {
     abstract fun readingDao(): ReadingDao
 }
