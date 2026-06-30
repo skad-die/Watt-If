@@ -29,6 +29,7 @@ import com.skaddie.watt_if.ui.history.HistoryScreen
 import com.skaddie.watt_if.ui.home.HomeScreen
 import com.skaddie.watt_if.ui.navigation.Screen
 import com.skaddie.watt_if.ui.settings.SettingsScreen
+import com.skaddie.watt_if.ui.theme.WattIfTheme
 import dagger.hilt.android.AndroidEntryPoint
 
 @AndroidEntryPoint
@@ -37,8 +38,8 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         setContent {
-            MaterialTheme {
-                Surface {
+            WattIfTheme {
+                Surface(color = MaterialTheme.colorScheme.background) {
                     WattIfApp()
                 }
             }
@@ -62,9 +63,7 @@ fun WattIfApp() {
         BottomNavItem(Screen.Settings, "Settings", Icons.Default.Settings)
     )
 
-    Scaffold(
-        bottomBar = {
-            NavigationBar {
+    Scaffold(bottomBar = { NavigationBar {
                 val navBackStackEntry by navController.currentBackStackEntryAsState()
                 val currentDestination = navBackStackEntry?.destination
 
