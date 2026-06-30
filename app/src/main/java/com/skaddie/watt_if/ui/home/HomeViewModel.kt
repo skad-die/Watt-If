@@ -3,12 +3,14 @@ package com.skaddie.watt_if.ui.home
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.skaddie.watt_if.data.local.entity.ReadingEntity
+import com.skaddie.watt_if.data.repository.PreferencesRepository
 import com.skaddie.watt_if.data.repository.ReadingRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
@@ -22,11 +24,30 @@ data class HomeUiState(
 
 @HiltViewModel
 class HomeViewModel @Inject constructor(
-    private val readingRepository: ReadingRepository
+    private val readingRepository: ReadingRepository,
+    private val preferencesRepository: PreferencesRepository
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(HomeUiState())
     val uiState: StateFlow<HomeUiState> = _uiState.asStateFlow()
+
+    init {
+        loadDefaultRate()
+    }
+
+    private fun loadDefaultRate() {
+        viewModelScope.launch {
+            val savedRate = preferencesRepository.defaultRate.firstOrNullValid()
+            val savedReading = preferencesRepository.lastKwhReading.firstOrNullValid()
+
+            _uiState.update {
+                it.copy(
+                    rate = if (savedRate > 0.0) savedRate.toString() else it.rate,
+                    previousKwh = if (savedReading > 0.0) savedReading.toString() else it.previousKwh
+                )
+            }
+        }
+    }
 
     fun onCurrentKwhChange(value: String) {
         _uiState.update { it.copy(currentKwh = value) }
@@ -71,6 +92,16 @@ class HomeViewModel @Inject constructor(
                     totalBill = state.estimatedBill
                 )
             )
+            preferencesRepository.saveDefaultRate(rate)
+            preferencesRepository.saveLastKwhReading(current)
         }
+    }
+}
+
+private suspend fun kotlinx.coroutines.flow.Flow<Double>.firstOrNullValid(): Double {
+    return try {
+        this.first()
+    } catch (e: Exception) {
+        0.0
     }
 }
