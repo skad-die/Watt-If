@@ -16,11 +16,13 @@ object WattIfDimens {
     val CardInnerSpacing = 4.dp
     val ButtonCornerRadius = 16.dp
     val ButtonHeight = 56.dp
-
+    val CardSectionSpacing = 12.dp
+    val DividerThickness = 1.dp
     // Navigation
     val NavBarItemSpacing = 6.dp
     val NavIconSize = 22.dp
     val NavIndicatorWidth = 24.dp
     val NavIndicatorHeight = 3.dp
     val NavIndicatorCornerRadius = 2.dp
+
 }
