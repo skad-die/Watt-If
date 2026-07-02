@@ -19,7 +19,10 @@ data class HomeUiState(
     val previousKwh: String = "",
     val rate: String = "",
     val consumption: Double = 0.0,
-    val estimatedBill: Double = 0.0
+    val estimatedBill: Double = 0.0,
+    val currentKwhError: String? = null,
+    val rateError: String? = null,
+    val isSaved: Boolean = false
 )
 
 @HiltViewModel
@@ -46,40 +49,47 @@ class HomeViewModel @Inject constructor(
                     previousKwh = if (savedReading > 0.0) savedReading.toString() else it.previousKwh
                 )
             }
+            recalculate()
         }
     }
 
-    fun onCurrentKwhChange(value: String) {
-        _uiState.update { it.copy(currentKwh = value) }
-        recalculate()
-    }
-
-    fun onPreviousKwhChange(value: String) {
-        _uiState.update { it.copy(previousKwh = value) }
-        recalculate()
-    }
-
-    fun onRateChange(value: String) {
-        _uiState.update { it.copy(rate = value) }
-        recalculate()
-    }
-
-    private fun recalculate() {
+    fun validate(): Boolean {
         val state = _uiState.value
-        val current = state.currentKwh.toDoubleOrNull() ?: 0.0
+        val current = state.currentKwh.toDoubleOrNull()
         val previous = state.previousKwh.toDoubleOrNull() ?: 0.0
-        val rate = state.rate.toDoubleOrNull() ?: 0.0
+        val rate = state.rate.toDoubleOrNull()
 
-        val consumption = (current - previous).coerceAtLeast(0.0)
-        val bill = consumption * rate
+        var currentError: String? = null
+        var rateError: String? = null
 
-        _uiState.update { it.copy(consumption = consumption, estimatedBill = bill) }
+        when {
+            state.currentKwh.isBlank() -> currentError = "Please enter your current reading"
+            current == null -> currentError = "Invalid number"
+            current <= previous -> currentError = "Must be higher than previous reading"
+        }
+
+        when {
+            state.rate.isBlank() -> rateError = "Please enter the rate per kWh"
+            rate == null -> rateError = "Invalid number"
+            rate <= 0.0 -> rateError = "Rate must be greater than 0"
+        }
+
+        _uiState.update {
+            it.copy(
+                currentKwhError = currentError,
+                rateError = rateError
+            )
+        }
+
+        return currentError == null && rateError == null
     }
 
     fun saveReading() {
+        if (!validate()) return
+
         val state = _uiState.value
         val current = state.currentKwh.toDoubleOrNull() ?: return
-        val previous = state.previousKwh.toDoubleOrNull() ?: return
+        val previous = state.previousKwh.toDoubleOrNull() ?: 0.0
         val rate = state.rate.toDoubleOrNull() ?: return
 
         viewModelScope.launch {
@@ -94,7 +104,57 @@ class HomeViewModel @Inject constructor(
             )
             preferencesRepository.saveDefaultRate(rate)
             preferencesRepository.saveLastKwhReading(current)
+            _uiState.update { it.copy(isSaved = true) }
         }
+    }
+
+    fun onCurrentKwhChange(value: String) {
+        _uiState.update {
+            it.copy(
+                currentKwh = value,
+                currentKwhError = null,
+                isSaved = false
+            )
+        }
+        recalculate()
+    }
+
+    fun onPreviousKwhChange(value: String) {
+        _uiState.update {
+            it.copy(
+                previousKwh = value,
+                currentKwhError = null,
+                isSaved = false
+            )
+        }
+        recalculate()
+    }
+
+    fun onRateChange(value: String) {
+        _uiState.update {
+            it.copy(
+                rate = value,
+                rateError = null,
+                isSaved = false
+            )
+        }
+        recalculate()
+    }
+
+    fun onSavedConsumed() {
+        _uiState.update { it.copy(isSaved = false) }
+    }
+
+    private fun recalculate() {
+        val state = _uiState.value
+        val current = state.currentKwh.toDoubleOrNull() ?: 0.0
+        val previous = state.previousKwh.toDoubleOrNull() ?: 0.0
+        val rate = state.rate.toDoubleOrNull() ?: 0.0
+
+        val consumption = (current - previous).coerceAtLeast(0.0)
+        val bill = consumption * rate
+
+        _uiState.update { it.copy(consumption = consumption, estimatedBill = bill) }
     }
 }
 

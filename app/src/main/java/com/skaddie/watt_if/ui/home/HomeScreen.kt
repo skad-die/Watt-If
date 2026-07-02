@@ -16,6 +16,8 @@ import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Snackbar
+import androidx.compose.material3.SnackbarDuration
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
@@ -23,19 +25,19 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextField
 import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.tooling.preview.Preview
+import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import com.skaddie.watt_if.ui.theme.WattIfDimens
 import com.skaddie.watt_if.ui.theme.WattIfTheme
-import kotlinx.coroutines.launch
 import java.text.NumberFormat
 import java.util.Locale
 
@@ -45,27 +47,37 @@ fun HomeScreen(
 ) {
     val uiState by viewModel.uiState.collectAsState()
     val snackbarHostState = remember { SnackbarHostState() }
-    val scope = rememberCoroutineScope()
     val currencyFormat = remember {
         NumberFormat.getCurrencyInstance(Locale.Builder().setLanguage("en").setRegion("PH").build())
     }
 
+    LaunchedEffect(uiState.isSaved) {
+        if (uiState.isSaved) {
+            snackbarHostState.showSnackbar(
+                message = "Saved ${currencyFormat.format(uiState.estimatedBill)} to history",
+                duration = SnackbarDuration.Short
+            )
+            viewModel.onSavedConsumed()
+        }
+    }
+
     Scaffold(
-        snackbarHost = { SnackbarHost(snackbarHostState) }
+        snackbarHost = {
+            SnackbarHost(hostState = snackbarHostState) { data ->
+                Snackbar(
+                    snackbarData = data,
+                    containerColor = MaterialTheme.colorScheme.primaryContainer,
+                    contentColor = MaterialTheme.colorScheme.onPrimaryContainer
+                )
+            }
+        }
     ) { padding ->
         HomeScreenContent(
             uiState = uiState,
             onCurrentKwhChange = viewModel::onCurrentKwhChange,
             onPreviousKwhChange = viewModel::onPreviousKwhChange,
             onRateChange = viewModel::onRateChange,
-            onSave = {
-                viewModel.saveReading()
-                scope.launch {
-                    snackbarHostState.showSnackbar(
-                        "Saved ${currencyFormat.format(uiState.estimatedBill)} to history"
-                    )
-                }
-            },
+            onSave = { viewModel.saveReading() },
             modifier = Modifier.padding(padding)
         )
     }
@@ -107,17 +119,20 @@ fun HomeScreenContent(
             ReadingField(
                 label = "Current kWh reading",
                 value = uiState.currentKwh,
-                onValueChange = onCurrentKwhChange
+                onValueChange = onCurrentKwhChange,
+                error = uiState.currentKwhError
             )
             ReadingField(
                 label = "Previous kWh reading",
                 value = uiState.previousKwh,
-                onValueChange = onPreviousKwhChange
+                onValueChange = onPreviousKwhChange,
+                optional = true
             )
             ReadingField(
                 label = "Rate per kWh (₱)",
                 value = uiState.rate,
-                onValueChange = onRateChange
+                onValueChange = onRateChange,
+                error = uiState.rateError
             )
         }
 
@@ -142,32 +157,63 @@ fun HomeScreenContent(
 }
 
 @Composable
-private fun ReadingField(label: String, value: String, onValueChange: (String) -> Unit) {
-    Surface(
-        shape = RoundedCornerShape(WattIfDimens.FieldCornerRadius),
-        color = MaterialTheme.colorScheme.surfaceVariant,
-        modifier = Modifier.fillMaxWidth()
-    ) {
-        TextField(
-            value = value,
-            onValueChange = onValueChange,
-            label = {
-                Text(label, style = MaterialTheme.typography.labelMedium)
-            },
-            textStyle = MaterialTheme.typography.bodyLarge,
-            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
-            colors = TextFieldDefaults.colors(
-                focusedContainerColor = MaterialTheme.colorScheme.surfaceVariant,
-                unfocusedContainerColor = MaterialTheme.colorScheme.surfaceVariant,
-                focusedIndicatorColor = Color.Transparent,
-                unfocusedIndicatorColor = Color.Transparent,
-                focusedTextColor = MaterialTheme.colorScheme.onSurfaceVariant,
-                unfocusedTextColor = MaterialTheme.colorScheme.onSurfaceVariant
-            ),
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(WattIfDimens.FieldHeight)
-        )
+private fun ReadingField(
+    label: String,
+    value: String,
+    onValueChange: (String) -> Unit,
+    error: String? = null,
+    optional: Boolean = false
+) {
+    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        Surface(
+            shape = RoundedCornerShape(WattIfDimens.FieldCornerRadius),
+            color = if (error != null)
+                MaterialTheme.colorScheme.errorContainer
+            else
+                MaterialTheme.colorScheme.surfaceVariant,
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            TextField(
+                value = value,
+                onValueChange = onValueChange,
+                label = {
+                    Text(
+                        text = if (optional) "$label (optional)" else label,
+                        style = MaterialTheme.typography.labelMedium
+                    )
+                },
+                textStyle = MaterialTheme.typography.bodyLarge,
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                isError = error != null,
+                colors = TextFieldDefaults.colors(
+                    focusedContainerColor = if (error != null)
+                        MaterialTheme.colorScheme.errorContainer
+                    else
+                        MaterialTheme.colorScheme.surfaceVariant,
+                    unfocusedContainerColor = if (error != null)
+                        MaterialTheme.colorScheme.errorContainer
+                    else
+                        MaterialTheme.colorScheme.surfaceVariant,
+                    focusedIndicatorColor = Color.Transparent,
+                    unfocusedIndicatorColor = Color.Transparent,
+                    errorIndicatorColor = Color.Transparent,
+                    errorContainerColor = MaterialTheme.colorScheme.errorContainer,
+                    focusedTextColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                    unfocusedTextColor = MaterialTheme.colorScheme.onSurfaceVariant
+                ),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(WattIfDimens.FieldHeight)
+            )
+        }
+        if (error != null) {
+            Text(
+                text = error,
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.error,
+                modifier = Modifier.padding(start = 4.dp)
+            )
+        }
     }
 }
 
@@ -205,7 +251,10 @@ private fun BillSummaryCard(consumption: Double, estimatedBill: Double) {
                     color = MaterialTheme.colorScheme.onPrimaryContainer
                 )
             }
-            Column(horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(WattIfDimens.CardInnerSpacing)) {
+            Column(
+                horizontalAlignment = Alignment.End,
+                verticalArrangement = Arrangement.spacedBy(WattIfDimens.CardInnerSpacing)
+            ) {
                 Text(
                     "Estimated bill",
                     style = MaterialTheme.typography.labelMedium,
