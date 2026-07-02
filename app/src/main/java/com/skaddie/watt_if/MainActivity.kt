@@ -4,6 +4,10 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.compose.animation.AnimatedContentTransitionScope
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -71,6 +75,8 @@ data class BottomNavItem(
 @Composable
 fun WattIfApp() {
     val navController = rememberNavController()
+    val currentBackStackEntry by navController.currentBackStackEntryAsState()
+    val currentRoute = currentBackStackEntry?.destination?.route
 
     val items = listOf(
         BottomNavItem(Screen.Home, "Home", Icons.Default.Home),
@@ -123,9 +129,95 @@ fun WattIfApp() {
             startDestination = Screen.Home.route,
             modifier = Modifier.padding(innerPadding)
         ) {
-            composable(Screen.Home.route) { HomeScreen() }
-            composable(Screen.History.route) { HistoryScreen() }
-            composable(Screen.Settings.route) { SettingsScreen() }
+            composable(
+                route = Screen.Home.route,
+                enterTransition = {
+                    val from = Screen.fromRoute(initialState.destination.route)
+                    if (Screen.indexOf(from) > Screen.indexOf(Screen.Home)) {
+                        slideIntoContainer(
+                            AnimatedContentTransitionScope.SlideDirection.Right,
+                            animationSpec = tween(300)
+                        )
+                    } else {
+                        fadeIn(animationSpec = tween(300))
+                    }
+                },
+                exitTransition = {
+                    val to = Screen.fromRoute(targetState.destination.route)
+                    if (Screen.indexOf(to) > Screen.indexOf(Screen.Home)) {
+                        slideOutOfContainer(
+                            AnimatedContentTransitionScope.SlideDirection.Left,
+                            animationSpec = tween(300)
+                        )
+                    } else {
+                        fadeOut(animationSpec = tween(300))
+                    }
+                }
+            ) { HomeScreen() }
+
+            composable(
+                route = Screen.History.route,
+                enterTransition = {
+                    val from = Screen.fromRoute(initialState.destination.route)
+                    if (Screen.indexOf(from) < Screen.indexOf(Screen.History)) {
+                        slideIntoContainer(
+                            AnimatedContentTransitionScope.SlideDirection.Left,
+                            animationSpec = tween(300)
+                        )
+                    } else {
+                        slideIntoContainer(
+                            AnimatedContentTransitionScope.SlideDirection.Right,
+                            animationSpec = tween(300)
+                        )
+                    }
+                },
+                exitTransition = {
+                    val to = Screen.fromRoute(targetState.destination.route)
+                    if (Screen.indexOf(to) < Screen.indexOf(Screen.History)) {
+                        slideOutOfContainer(
+                            AnimatedContentTransitionScope.SlideDirection.Right,
+                            animationSpec = tween(300)
+                        )
+                    } else {
+                        slideOutOfContainer(
+                            AnimatedContentTransitionScope.SlideDirection.Left,
+                            animationSpec = tween(300)
+                        )
+                    }
+                }
+            ) { HistoryScreen() }
+
+            composable(
+                route = Screen.Settings.route,
+                enterTransition = {
+                    val from = Screen.fromRoute(initialState.destination.route)
+                    if (Screen.indexOf(from) < Screen.indexOf(Screen.Settings)) {
+                        slideIntoContainer(
+                            AnimatedContentTransitionScope.SlideDirection.Left,
+                            animationSpec = tween(300)
+                        )
+                    } else {
+                        slideIntoContainer(
+                            AnimatedContentTransitionScope.SlideDirection.Right,
+                            animationSpec = tween(300)
+                        )
+                    }
+                },
+                exitTransition = {
+                    val to = Screen.fromRoute(targetState.destination.route)
+                    if (Screen.indexOf(to) < Screen.indexOf(Screen.Settings)) {
+                        slideOutOfContainer(
+                            AnimatedContentTransitionScope.SlideDirection.Right,
+                            animationSpec = tween(300)
+                        )
+                    } else {
+                        slideOutOfContainer(
+                            AnimatedContentTransitionScope.SlideDirection.Left,
+                            animationSpec = tween(300)
+                        )
+                    }
+                }
+            ) { SettingsScreen() }
         }
     }
 }

@@ -1,5 +1,8 @@
 package com.skaddie.watt_if.ui.history
 
+import androidx.compose.animation.animateContentSize
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.spring
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.combinedClickable
@@ -25,6 +28,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarDuration
 import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.Snackbar
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.SnackbarResult
 import androidx.compose.material3.SwipeToDismissBox
@@ -33,7 +37,6 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberSwipeToDismissBoxState
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.key
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -43,8 +46,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.scale
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.window.DialogProperties
@@ -54,7 +55,6 @@ import com.skaddie.watt_if.ui.theme.WattIfDimens
 import com.skaddie.watt_if.ui.theme.WattIfTheme
 import java.text.NumberFormat
 import java.text.SimpleDateFormat
-import java.util.Date
 import java.util.Locale
 import kotlinx.coroutines.launch
 
@@ -83,13 +83,38 @@ fun HistoryScreenContent(
 ) {
     val snackbarHostState = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
-
     var pendingDelete by remember { mutableStateOf<ReadingEntity?>(null) }
 
-    Scaffold(
-        snackbarHost = { SnackbarHost(hostState = snackbarHostState) }
-    ) { innerPadding ->
+    val currencyFormat = remember {
+        NumberFormat.getCurrencyInstance(
+            Locale.Builder().setLanguage("en").setRegion("PH").build()
+        )
+    }
+    val dateFormat = remember {
+        SimpleDateFormat("MMM dd, yyyy", Locale.getDefault())
+    }
 
+    Scaffold(
+        snackbarHost = {
+            SnackbarHost(
+                hostState = snackbarHostState,
+                snackbar = { data ->
+                    Snackbar(
+                        snackbarData = data,
+                        containerColor = MaterialTheme.colorScheme.errorContainer,
+                        contentColor = MaterialTheme.colorScheme.onErrorContainer,
+                        actionColor = MaterialTheme.colorScheme.onErrorContainer
+                    )
+                },
+                modifier = Modifier.animateContentSize(
+                    animationSpec = spring(
+                        dampingRatio = Spring.DampingRatioMediumBouncy,
+                        stiffness = Spring.StiffnessMedium
+                    )
+                )
+            )
+        }
+    ) { innerPadding ->
         Column(
             modifier = Modifier
                 .fillMaxSize()
@@ -100,7 +125,18 @@ fun HistoryScreenContent(
                 ),
             verticalArrangement = Arrangement.spacedBy(WattIfDimens.SectionSpacing)
         ) {
-            // ... your title + empty state + LazyColumn stay the same
+            Column(verticalArrangement = Arrangement.spacedBy(WattIfDimens.TitleSpacing)) {
+                Text(
+                    text = "History",
+                    style = MaterialTheme.typography.headlineMedium,
+                    color = MaterialTheme.colorScheme.onBackground
+                )
+                Text(
+                    text = "Your past electricity readings",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
 
             if (readings.isEmpty()) {
                 EmptyState()
@@ -112,11 +148,12 @@ fun HistoryScreenContent(
                         items = readings,
                         key = { it.id }
                     ) { reading ->
-
                         val requestDelete: () -> Unit = { pendingDelete = reading }
 
                         SwipeToDeleteReadingCard(
                             reading = reading,
+                            currencyFormat = currencyFormat,
+                            dateFormat = dateFormat,
                             onDelete = requestDelete,
                             onLongClick = requestDelete
                         )
@@ -128,15 +165,13 @@ fun HistoryScreenContent(
         pendingDelete?.let { readingToDelete ->
             AlertDialog(
                 onDismissRequest = { pendingDelete = null },
-                title = { Text("Delete reading?") },
-                text = { Text("Are you sure you want to delete this reading?") },
+                title = { Text("Delete reading?", style = MaterialTheme.typography.titleMedium) },
+                text = { Text("Are you sure you want to delete this reading?", style = MaterialTheme.typography.bodyMedium) },
                 confirmButton = {
                     TextButton(
                         onClick = {
-                            // do delete + snackbar undo
                             onDelete(readingToDelete)
                             pendingDelete = null
-
                             scope.launch {
                                 val result = snackbarHostState.showSnackbar(
                                     message = "Reading deleted",
@@ -157,20 +192,19 @@ fun HistoryScreenContent(
                         Text("Cancel")
                     }
                 },
-                properties = DialogProperties(
-                    dismissOnBackPress = true,
-                    dismissOnClickOutside = true
-                )
+                properties = DialogProperties(dismissOnBackPress = true, dismissOnClickOutside = true)
             )
         }
     }
 }
 
 
-@OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun SwipeToDeleteReadingCard(
     reading: ReadingEntity,
+    currencyFormat: NumberFormat,
+    dateFormat: SimpleDateFormat,
     onDelete: () -> Unit,
     onLongClick: () -> Unit
 ) {
@@ -178,11 +212,10 @@ private fun SwipeToDeleteReadingCard(
         confirmValueChange = { value ->
             if (value == SwipeToDismissBoxValue.EndToStart) {
                 onDelete()
-                false
-            } else false
+            }
+            false
         }
     )
-
 
     SwipeToDismissBox(
         state = dismissState,
@@ -203,10 +236,11 @@ private fun SwipeToDeleteReadingCard(
                 )
             }
         }
-
     ) {
         ReadingCard(
             reading = reading,
+            currencyFormat = currencyFormat,
+            dateFormat = dateFormat,
             onLongClick = onLongClick
         )
     }
@@ -217,26 +251,17 @@ private fun SwipeToDeleteReadingCard(
 @Composable
 private fun ReadingCard(
     reading: ReadingEntity,
+    currencyFormat: NumberFormat,
+    dateFormat: SimpleDateFormat,
     onLongClick: () -> Unit
 ) {
-    val currencyFormat = remember {
-        NumberFormat.getCurrencyInstance(
-            Locale.Builder().setLanguage("en").setRegion("PH").build()
-        )
-    }
-    val dateFormat = remember {
-        SimpleDateFormat("MMM dd, yyyy", Locale.getDefault())
-    }
-
     Card(
         shape = RoundedCornerShape(WattIfDimens.CardCornerRadius),
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surfaceVariant
-        ),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
         modifier = Modifier
             .fillMaxWidth()
             .combinedClickable(
-                onClick = {},
+                onClick = {}, // Keeps the layer structured, but consider handling a proper detailed-view click here later!
                 onLongClick = onLongClick
             )
     ) {
@@ -255,7 +280,8 @@ private fun ReadingCard(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Text(
-                    text = dateFormat.format(Date(reading.date)),
+                    // 3. Formats direct long values safely avoiding redundant Date object overhead
+                    text = dateFormat.format(reading.date),
                     style = MaterialTheme.typography.labelLarge,
                     color = MaterialTheme.colorScheme.primary
                 )
@@ -275,9 +301,7 @@ private fun ReadingCard(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
-                Column(
-                    verticalArrangement = Arrangement.spacedBy(WattIfDimens.CardInnerSpacing)
-                ) {
+                Column(verticalArrangement = Arrangement.spacedBy(WattIfDimens.CardInnerSpacing)) {
                     Text(
                         text = "Consumption",
                         style = MaterialTheme.typography.labelMedium,
